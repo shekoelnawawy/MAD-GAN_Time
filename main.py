@@ -1,55 +1,49 @@
-import numpy as np
-import joblib
-from scipy import stats
-from dtaidistance import dtw, clustering
-import itertools
-from tqdm import tqdm
 import os
+import numpy as np
+import time
 
-base_dir = '/home/mnawawy/Downloads/OhioT1DM/processed_data/risk_profiling'
-# base_dir = '/Users/nawawy/Desktop/Research/OhioT1DM_data/risk_profiling'
-data_dir = os.path.join(base_dir, 'Data')
-out_dir = os.path.join(base_dir, 'cluster_outputs')
-os.makedirs(out_dir, exist_ok=True)
+os.makedirs('output', exist_ok=True)
+print('-----------------------------------------------------------------------------------------------------------------------------')
 
-years = ['2018', '2020']
-patients_2018= ['559', '563', '570', '575', '588', '591']
-patients_2020 = ['540', '544', '552', '567', '584', '596']
-timeseries = []
+# with is like your try .. finally block in this case
+with open('experiments/settings/sepsis.txt', 'r') as train_file:
+    # read a list of lines into data
+    train_data = train_file.readlines()
 
-for year in years:
-    if year == '2018':
-        patients = patients_2018
-    else:
-        patients = patients_2020
-    for patient in patients:
-        instantaneous_error_path = os.path.join(data_dir, year, patient, 'instantaneous_error.pkl')
-        print(instantaneous_error_path)
-        df = stats.zscore(np.array(joblib.load(instantaneous_error_path).mean(axis=1), dtype=np.double))
-        timeseries.append(df)
+# now change the 2nd line, note that you have to add a newline
+train_data[2] = "\"year\": \"least\",\n"
+train_data[3] = "\"patient\": \"0\",\n"
 
-numbers = []
-labels = []
-for i in range(len(patients_2018)+len(patients_2020)):
-    numbers.append(i)
-    labels.append("p"+str(i))
+# and write everything back
+with open('experiments/settings/sepsis.txt', 'w') as train_file:
+    train_file.writelines(train_data)
 
-i=0
-for x in tqdm(itertools.permutations(numbers)):
-    ts = []
-    lb = []
-    for j in range(len(x)):
-        ts.append(timeseries[int(x[j])])
-        lb.append(labels[int(x[j])])
+os.makedirs(os.path.join('output', 'least'), exist_ok=True)
+start_time = time.perf_counter()
+os.system('python RGAN.py --settings_file sepsis > ./output/least/train.txt')
+end_time = time.perf_counter()
+elapsed_time_less = end_time - start_time
+print('-----------------------------------------------------------------------------------------------------------------------------')
 
-    ds = dtw.distance_matrix_fast(ts)
-    #print(ds)
+# with is like your try .. finally block in this case
+with open('experiments/settings/sepsis.txt', 'r') as train_file:
+    # read a list of lines into data
+    train_data = train_file.readlines()
 
-    # You can also pass keyword arguments identical to instantiate a Hierarchical object
-    model2 = clustering.HierarchicalTree(dists_fun=dtw.distance_matrix_fast, dists_options={})
-    cluster_idx = model2.fit(ts)
-    # print(cluster_idx)
-    # print(model2.linkage)
+# now change the 2nd line, note that you have to add a newline
+train_data[2] = "\"year\": \"all\",\n"
+train_data[3] = "\"patient\": \"0\",\n"
 
-    model2.plot(os.path.join(out_dir, "hierarchy"+str(i)+".pdf"), ts_label_margin = -200, show_ts_label=lb)
-    i += 1
+# and write everything back
+with open('experiments/settings/sepsis.txt', 'w') as train_file:
+    train_file.writelines(train_data)
+
+os.makedirs(os.path.join('output', 'all'), exist_ok=True)
+start_time = time.perf_counter()
+os.system('python RGAN.py --settings_file sepsis > ./output/all/train.txt')
+end_time = time.perf_counter()
+elapsed_time_all = end_time - start_time
+print('-----------------------------------------------------------------------------------------------------------------------------')
+print(f"All Patients Elapsed Time: {elapsed_time_all:.6f} seconds")
+print(f"Less Vulnerable Elapsed Time: {elapsed_time_less:.6f} seconds")
+print('Percentage Decrease One-Class SVM = '+str(((elapsed_time_all-elapsed_time_less)/elapsed_time_all)*100))
